@@ -1,0 +1,27 @@
+[project]
+name = "valuationengine"
+version = "0.1.0"
+description = "Open-source DCF, LBO, and reverse DCF toolkit"
+requires-python = ">=3.10"
+dependencies = [
+    "yfinance",
+    "pandas",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "click",
+    "streamlit",
+    "fastmcp",
+    "pytest",
+]
+
+[project.scripts]
+ve = "adapters.cli:cli"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "data*", "adapters*"]
