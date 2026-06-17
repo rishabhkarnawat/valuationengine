@@ -35,10 +35,36 @@ with st.sidebar:
     st.header("Inputs")
     ticker = st.text_input("Ticker", value="AMZN").strip().upper()
 
+try:
+    company = _fetch(ticker)
+except Exception as e:
+    st.error(f"Could not fetch data for {ticker}: {e}")
+    st.stop()
+
+with st.sidebar:
     st.subheader("Operating assumptions")
-    revenue_growth = st.slider("Revenue growth", -0.10, 0.40, 0.08, 0.01, format="%.2f")
-    operating_margin = st.slider("Operating margin (EBIT)", 0.0, 0.50, 0.20, 0.01, format="%.2f")
-    projection_years = st.slider("Projection years", 3, 10, 5)
+    st.caption(f"Defaulted to {ticker}'s own 5-year history. Drag to override.")
+    default_growth = float(np.clip(company.historical_revenue_cagr, -0.10, 0.40))
+    default_margin = float(np.clip(company.avg_operating_margin, 0.01, 0.50))
+    revenue_growth = st.slider(
+        "Revenue growth",
+        -0.10,
+        0.40,
+        default_growth,
+        0.01,
+        format="%.2f",
+        key=f"growth_{ticker}",
+    )
+    operating_margin = st.slider(
+        "Operating margin (EBIT)",
+        0.0,
+        0.50,
+        default_margin,
+        0.01,
+        format="%.2f",
+        key=f"margin_{ticker}",
+    )
+    projection_years = st.slider("Projection years", 3, 10, 5, key=f"years_{ticker}")
 
     st.subheader("WACC")
     risk_free_rate = st.slider("Risk-free rate", 0.0, 0.10, 0.045, 0.005, format="%.3f")
@@ -51,7 +77,14 @@ with st.sidebar:
         exit_ev_ebitda_multiple = st.slider("Exit EV/EBITDA", 4.0, 25.0, 10.0, 0.5)
         terminal_growth = 0.025
     else:
-        terminal_growth = st.slider("Terminal growth", 0.0, 0.05, 0.025, 0.005, format="%.3f")
+        terminal_growth = st.slider(
+            "Terminal growth",
+            0.0,
+            0.05,
+            0.025,
+            0.005,
+            format="%.3f",
+        )
         exit_ev_ebitda_multiple = 10.0
 
     st.subheader("LBO")
@@ -60,13 +93,8 @@ with st.sidebar:
     lbo_interest_rate = st.slider("LBO debt interest rate", 0.0, 0.15, 0.08, 0.005, format="%.3f")
     hold_period_years = st.slider("Hold period (years)", 3, 7, 5)
 
-try:
-    company = _fetch(ticker)
-except Exception as e:
-    st.error(f"Could not fetch data for {ticker}: {e}")
-    st.stop()
-
-assumptions = Assumptions(
+assumptions = Assumptions.calibrated_for(
+    company,
     revenue_growth=revenue_growth,
     operating_margin=operating_margin,
     projection_years=projection_years,

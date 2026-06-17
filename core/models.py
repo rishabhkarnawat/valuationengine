@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, fields
 
 import pandas as pd
+
+
+def _clip_or_fallback(value: float, lo: float, hi: float, fallback: float) -> float:
+    """Clip value into [lo, hi]; if value is None, NaN, or infinite, return fallback instead."""
+    if value is None or not math.isfinite(value):
+        return fallback
+    return max(lo, min(hi, value))
 
 
 @dataclass
@@ -116,6 +124,68 @@ class Assumptions:
 
     def get_margin_path(self) -> list[float]:
         return _broadcast_path(self.operating_margin, self.projection_years, "operating_margin")
+
+    @classmethod
+    def calibrated_for(cls, company: "Company", **overrides) -> "Assumptions":
+        """
+        Build an Assumptions instance whose revenue_growth, operating_margin,
+        capex_pct_revenue, da_pct_revenue, and nwc_pct_revenue default to this
+        specific company's own historical averages instead of generic constants.
+        Any of those fields (or any other Assumptions field) passed as a keyword
+        argument with a non-None value overrides the calibrated value.
+
+        terminal_growth, risk_free_rate, equity_risk_premium, and
+        target_debt_weight are intentionally NOT calibrated to company history;
+        they remain at the generic dataclass defaults unless explicitly overridden.
+
+        Each company-derived field is read defensively: if accessing the
+        property raises, or returns None/NaN/inf, fall back to the generic
+        dataclass default for that field instead of propagating bad data.
+        """
+        base = cls()
+
+        try:
+            base.revenue_growth = _clip_or_fallback(
+                company.historical_revenue_cagr, -0.10, 0.40, base.revenue_growth
+            )
+        except Exception:
+            pass
+
+        try:
+            base.operating_margin = _clip_or_fallback(
+                company.avg_operating_margin, 0.01, 0.60, base.operating_margin
+            )
+        except Exception:
+            pass
+
+        try:
+            base.capex_pct_revenue = _clip_or_fallback(
+                company.avg_capex_pct_revenue, 0.0, 0.30, base.capex_pct_revenue
+            )
+        except Exception:
+            pass
+
+        try:
+            base.da_pct_revenue = _clip_or_fallback(
+                company.avg_da_pct_revenue, 0.0, 0.30, base.da_pct_revenue
+            )
+        except Exception:
+            pass
+
+        try:
+            base.nwc_pct_revenue = _clip_or_fallback(
+                company.avg_nwc_pct_revenue, -0.10, 0.20, base.nwc_pct_revenue
+            )
+        except Exception:
+            pass
+
+        valid_fields = {f.name for f in fields(cls)}
+        for key, value in overrides.items():
+            if key not in valid_fields:
+                raise ValueError(f"'{key}' is not a valid Assumptions field.")
+            if value is not None:
+                setattr(base, key, value)
+        return base
 
 
 def _broadcast_path(value: float | list[float], length: int, name: str) -> list[float]:

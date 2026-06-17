@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from typing import Optional
 
 _PKG_ROOT = Path(__file__).resolve().parents[1]
 if str(_PKG_ROOT) not in sys.path:
@@ -57,8 +58,8 @@ def fetch_fundamentals(ticker: str) -> dict:
 @mcp.tool()
 def run_dcf(
     ticker: str,
-    revenue_growth: float = 0.08,
-    operating_margin: float = 0.20,
+    revenue_growth: Optional[float] = None,
+    operating_margin: Optional[float] = None,
     terminal_growth: float = 0.025,
     risk_free_rate: float = 0.045,
     equity_risk_premium: float = 0.055,
@@ -76,10 +77,14 @@ def run_dcf(
     'is X overvalued'.
 
     All percentage inputs are decimals (0.10 means 10%).
+
+    If revenue_growth or operating_margin are omitted, they default to this company's
+    own historical averages rather than a generic profile.
     """
     try:
         company = fetch_company(ticker)
-        a = Assumptions(
+        a = Assumptions.calibrated_for(
+            company,
             revenue_growth=revenue_growth,
             operating_margin=operating_margin,
             terminal_growth=terminal_growth,
@@ -100,6 +105,13 @@ def run_dcf(
             "enterprise_value": r.enterprise_value,
             "equity_value": r.equity_value,
             "terminal_value": r.terminal_value,
+            "assumptions_used": {
+                "revenue_growth": a.revenue_growth,
+                "operating_margin": a.operating_margin,
+                "capex_pct_revenue": a.capex_pct_revenue,
+                "da_pct_revenue": a.da_pct_revenue,
+                "nwc_pct_revenue": a.nwc_pct_revenue,
+            },
             "projection": r.projection.to_dict(orient="records"),
         }
     except Exception as e:
@@ -113,8 +125,8 @@ def run_lbo(
     exit_ev_ebitda_multiple: float = 10.0,
     debt_pct_purchase: float = 0.60,
     interest_rate: float = 0.08,
-    revenue_growth: float = 0.05,
-    operating_margin: float = 0.20,
+    revenue_growth: Optional[float] = None,
+    operating_margin: Optional[float] = None,
     hold_period_years: int = 5,
 ) -> dict:
     """
@@ -124,10 +136,14 @@ def run_lbo(
     hold period, services debt with mandatory amortization plus a cash sweep,
     exits at the exit multiple, and returns sponsor IRR and MOIC. Use when the
     user asks about take-private deals, PE returns, or LBO economics.
+
+    If revenue_growth or operating_margin are omitted, they default to this company's
+    own historical averages rather than a generic profile.
     """
     try:
         company = fetch_company(ticker)
-        a = Assumptions(
+        a = Assumptions.calibrated_for(
+            company,
             entry_ev_ebitda_multiple=entry_ev_ebitda_multiple,
             exit_lbo_ev_ebitda_multiple=exit_ev_ebitda_multiple,
             debt_pct_purchase=debt_pct_purchase,
@@ -144,6 +160,13 @@ def run_lbo(
             "irr_pct": r.irr * 100,
             "moic": r.moic,
             "exit": r.exit,
+            "assumptions_used": {
+                "revenue_growth": a.revenue_growth,
+                "operating_margin": a.operating_margin,
+                "capex_pct_revenue": a.capex_pct_revenue,
+                "da_pct_revenue": a.da_pct_revenue,
+                "nwc_pct_revenue": a.nwc_pct_revenue,
+            },
             "projection": r.projection.to_dict(orient="records"),
             "debt_schedule": r.debt_schedule.to_dict(orient="records"),
         }
@@ -168,9 +191,21 @@ def run_reverse_dcf(
     """
     try:
         company = fetch_company(ticker)
-        return reverse_module.solve(
-            company, Assumptions(tax_rate=company.effective_tax_rate), field=field, target=target
+        base_assumptions = Assumptions.calibrated_for(
+            company, tax_rate=company.effective_tax_rate
         )
+        base_assumptions_used = {
+            "revenue_growth": base_assumptions.revenue_growth,
+            "operating_margin": base_assumptions.operating_margin,
+            "capex_pct_revenue": base_assumptions.capex_pct_revenue,
+            "da_pct_revenue": base_assumptions.da_pct_revenue,
+            "nwc_pct_revenue": base_assumptions.nwc_pct_revenue,
+        }
+        result = reverse_module.solve(
+            company, base_assumptions, field=field, target=target
+        )
+        result["base_assumptions_used"] = base_assumptions_used
+        return result
     except Exception as e:
         return {"error": str(e)}
 
@@ -197,11 +232,21 @@ def run_sensitivity(
     """
     try:
         company = fetch_company(ticker)
+        base_assumptions = Assumptions.calibrated_for(
+            company, tax_rate=company.effective_tax_rate
+        )
+        base_assumptions_used = {
+            "revenue_growth": base_assumptions.revenue_growth,
+            "operating_margin": base_assumptions.operating_margin,
+            "capex_pct_revenue": base_assumptions.capex_pct_revenue,
+            "da_pct_revenue": base_assumptions.da_pct_revenue,
+            "nwc_pct_revenue": base_assumptions.nwc_pct_revenue,
+        }
         x_values = list(np.linspace(x_min, x_max, x_steps))
         y_values = list(np.linspace(y_min, y_max, y_steps))
         table = sensitivity_module.run(
             company,
-            Assumptions(tax_rate=company.effective_tax_rate),
+            base_assumptions,
             x_field,
             x_values,
             y_field,
@@ -216,6 +261,7 @@ def run_sensitivity(
             "x_values": x_values,
             "y_values": y_values,
             "grid": table.values.tolist(),
+            "base_assumptions_used": base_assumptions_used,
         }
     except Exception as e:
         return {"error": str(e)}
@@ -236,8 +282,18 @@ def run_scenario(
     """
     try:
         company = fetch_company(ticker)
+        base_assumptions = Assumptions.calibrated_for(
+            company, tax_rate=company.effective_tax_rate
+        )
+        base_assumptions_used = {
+            "revenue_growth": base_assumptions.revenue_growth,
+            "operating_margin": base_assumptions.operating_margin,
+            "capex_pct_revenue": base_assumptions.capex_pct_revenue,
+            "da_pct_revenue": base_assumptions.da_pct_revenue,
+            "nwc_pct_revenue": base_assumptions.nwc_pct_revenue,
+        }
         scenarios = scenario_module.build_bull_base_bear(
-            Assumptions(tax_rate=company.effective_tax_rate),
+            base_assumptions,
             growth_delta=growth_delta,
             margin_delta=margin_delta,
         )
@@ -253,6 +309,7 @@ def run_scenario(
                 }
                 for name, r in results.items()
             },
+            "base_assumptions_used": base_assumptions_used,
         }
     except Exception as e:
         return {"error": str(e)}

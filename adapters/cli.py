@@ -63,6 +63,11 @@ def dcf(
             years=years,
         )
         result = dcf_module.run(company, assumptions)
+        click.echo(
+            f"Calibrated base case: {assumptions.revenue_growth*100:.1f}% growth, "
+            f"{assumptions.operating_margin*100:.1f}% margin (from {ticker}'s own 5yr history "
+            f"unless overridden by flags)"
+        )
         click.echo(result.summary())
         click.echo("")
         click.echo("Projection:")
@@ -84,7 +89,8 @@ def lbo(ctx, ticker, entry_multiple, exit_multiple, debt_pct, interest_rate, hol
     """Run an LBO on TICKER."""
     try:
         company = fetch_company(ticker)
-        a = Assumptions(tax_rate=company.effective_tax_rate)
+        a = Assumptions.calibrated_for(company)
+        a.tax_rate = company.effective_tax_rate
         if entry_multiple is not None:
             a.entry_ev_ebitda_multiple = entry_multiple
         if exit_multiple is not None:
@@ -96,6 +102,11 @@ def lbo(ctx, ticker, entry_multiple, exit_multiple, debt_pct, interest_rate, hol
         if hold is not None:
             a.hold_period_years = hold
         result = lbo_module.run(company, a)
+        click.echo(
+            f"Calibrated base case: {a.revenue_growth*100:.1f}% growth, "
+            f"{a.operating_margin*100:.1f}% margin (from {ticker}'s own 5yr history "
+            f"unless overridden by flags)"
+        )
         click.echo(result.summary())
         click.echo("")
         click.echo("Debt schedule:")
@@ -114,8 +125,15 @@ def reverse(ctx, ticker, field, target):
     """Run a reverse DCF on TICKER: back-solve market-implied assumptions."""
     try:
         company = fetch_company(ticker)
+        assumptions = Assumptions.calibrated_for(company)
+        assumptions.tax_rate = company.effective_tax_rate
         result = reverse_module.solve(
-            company, Assumptions(tax_rate=company.effective_tax_rate), field=field, target=target
+            company, assumptions, field=field, target=target
+        )
+        click.echo(
+            f"Calibrated base case: {assumptions.revenue_growth*100:.1f}% growth, "
+            f"{assumptions.operating_margin*100:.1f}% margin (from {ticker}'s own 5yr history "
+            f"unless overridden by flags)"
         )
         click.echo(f"\nReverse DCF for {ticker}")
         click.echo(f"Solving for: {result['field']}")
@@ -157,16 +175,23 @@ def sensitivity(
 
     try:
         company = fetch_company(ticker)
+        assumptions = Assumptions.calibrated_for(company)
+        assumptions.tax_rate = company.effective_tax_rate
         x_values = list(np.linspace(x_min, x_max, x_steps))
         y_values = list(np.linspace(y_min, y_max, y_steps))
         table = sensitivity_module.run(
             company,
-            Assumptions(tax_rate=company.effective_tax_rate),
+            assumptions,
             x_field,
             x_values,
             y_field,
             y_values,
             output=output,
+        )
+        click.echo(
+            f"Calibrated base case: {assumptions.revenue_growth*100:.1f}% growth, "
+            f"{assumptions.operating_margin*100:.1f}% margin (from {ticker}'s own 5yr history "
+            f"unless overridden by flags)"
         )
         click.echo(f"\nSensitivity table for {ticker} ({output})")
         click.echo(f"Rows: {y_field}, Columns: {x_field}\n")
@@ -185,12 +210,19 @@ def scenario(ctx, ticker, growth_delta, margin_delta):
     """Run bull / base / bear scenario analysis on TICKER."""
     try:
         company = fetch_company(ticker)
+        assumptions = Assumptions.calibrated_for(company)
+        assumptions.tax_rate = company.effective_tax_rate
         scenarios = scenario_module.build_bull_base_bear(
-            Assumptions(tax_rate=company.effective_tax_rate),
+            assumptions,
             growth_delta=growth_delta,
             margin_delta=margin_delta,
         )
         results = scenario_module.run(company, scenarios)
+        click.echo(
+            f"Calibrated base case: {assumptions.revenue_growth*100:.1f}% growth, "
+            f"{assumptions.operating_margin*100:.1f}% margin (from {ticker}'s own 5yr history "
+            f"unless overridden by flags)"
+        )
         click.echo(f"\nScenario analysis for {ticker}\n")
         rows = []
         for name, r in results.items():
@@ -219,7 +251,8 @@ def _build_assumptions(
     exit_multiple=None,
     years=None,
 ) -> Assumptions:
-    a = Assumptions(tax_rate=company.effective_tax_rate)
+    a = Assumptions.calibrated_for(company)
+    a.tax_rate = company.effective_tax_rate
     if growth is not None:
         a.revenue_growth = growth
     if margin is not None:

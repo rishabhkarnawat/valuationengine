@@ -17,6 +17,8 @@ One engine. Four interfaces. Built for analysts, students, and AI agents that wa
 - **Scenario analysis** with built-in bull, base, and bear cases
 - **Auto-fetched fundamentals** via yfinance with no manual data entry
 
+Assumptions auto-calibrate to each company's own five-year history. Revenue growth, operating margin, capex intensity, D&A intensity, and working-capital intensity all default to that specific company's trailing averages instead of one generic profile applied to every ticker. Explicit overrides always take precedence. Terminal growth and WACC inputs are deliberately left at conservative macro defaults rather than extrapolated from history, since perpetuity assumptions should reflect long-run sustainable growth, not a company's recent trajectory.
+
 Every interface (Python, CLI, dashboard, MCP) is a thin wrapper around the same pure-Python engine, so a result computed in one is identical to a result computed in another.
 
 ---

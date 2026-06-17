@@ -1,6 +1,10 @@
 """Tests for Company, Assumptions, and computed properties."""
 
+import math
+
 import pytest
+
+from valuationengine.core.models import Assumptions, Company
 
 
 def test_company_net_debt(sample_company):
@@ -65,3 +69,56 @@ def test_get_margin_path_broadcasts(base_assumptions):
     path = base_assumptions.get_margin_path()
     assert len(path) == 4
     assert all(m == pytest.approx(0.18) for m in path)
+
+
+def test_calibrated_for_uses_company_history(sample_company):
+    """calibrated_for defaults growth and margin to the company's own historical averages."""
+    a = Assumptions.calibrated_for(sample_company)
+    assert a.revenue_growth == pytest.approx(sample_company.historical_revenue_cagr, rel=1e-3)
+    assert a.operating_margin == pytest.approx(sample_company.avg_operating_margin, rel=1e-3)
+    assert a.capex_pct_revenue == pytest.approx(sample_company.avg_capex_pct_revenue, rel=1e-3)
+    assert a.da_pct_revenue == pytest.approx(sample_company.avg_da_pct_revenue, rel=1e-3)
+    assert a.nwc_pct_revenue == pytest.approx(sample_company.avg_nwc_pct_revenue, rel=1e-3)
+
+
+def test_calibrated_for_explicit_override_wins(sample_company):
+    """An explicitly passed value overrides the company-calibrated default."""
+    a = Assumptions.calibrated_for(sample_company, operating_margin=0.42)
+    assert a.operating_margin == pytest.approx(0.42)
+    assert a.revenue_growth == pytest.approx(sample_company.historical_revenue_cagr, rel=1e-3)
+
+
+def test_calibrated_for_does_not_touch_terminal_growth(sample_company):
+    """terminal_growth is never calibrated to company history."""
+    a = Assumptions.calibrated_for(sample_company)
+    assert a.terminal_growth == pytest.approx(Assumptions().terminal_growth)
+
+
+def test_calibrated_for_invalid_field_raises(sample_company):
+    """Passing a kwarg that is not a real Assumptions field raises ValueError."""
+    with pytest.raises(ValueError):
+        Assumptions.calibrated_for(sample_company, not_a_real_field=0.1)
+
+
+def test_calibrated_for_handles_bad_history_gracefully():
+    """If a company's historical data is degenerate, fall back to the generic default instead of propagating bad data."""
+    bad_company = Company(
+        ticker="BAD",
+        name="Bad Data Co",
+        revenue=[0.0, 0.0],
+        ebit=[0.0, 0.0],
+        ebitda=[0.0, 0.0],
+        depreciation_amortization=[0.0, 0.0],
+        capex=[0.0, 0.0],
+        change_in_nwc=[0.0, 0.0],
+        effective_tax_rate=0.25,
+        cash=0.0,
+        total_debt=0.0,
+        shares_outstanding=1.0,
+        current_price=1.0,
+        market_cap=1.0,
+        beta=1.0,
+    )
+    a = Assumptions.calibrated_for(bad_company)
+    assert math.isfinite(a.revenue_growth)
+    assert math.isfinite(a.operating_margin)
