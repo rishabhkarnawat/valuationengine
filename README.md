@@ -68,10 +68,22 @@ python -m valuationengine.adapters.cli sensitivity AMZN \
 ### As a Streamlit dashboard
 
 ```bash
-streamlit run valuationengine/adapters/dashboard.py
+python3 -m streamlit run adapters/dashboard.py
 ```
 
-Type a ticker, move the sliders, watch every tab update live: DCF, LBO, reverse DCF, sensitivity, and scenarios.
+Enter one ticker (e.g. `DPZ`) or up to five comma-separated tickers (e.g. `DPZ, CMG, SBUX`) for peer comparison.
+
+**Dashboard features:**
+
+- **Summary card** — Current price, fair value, upside/downside, and LBO IRR at a glance, plus a one-line interpretation
+- **HTML tables** — Fundamentals, DCF, scenarios, reverse DCF, LBO returns, projections, and debt schedule
+- **Sensitivity grid** — 2D heatmap of fair value across revenue growth and operating margin
+- **Peer comparison** — Side-by-side table sorted by DCF upside (multi-ticker mode)
+- **Export CSV** — Download the main valuation summary
+- **UX** — Loading skeletons, fetch progress, clear error messages, tooltips, and a Refresh button to clear caches
+- **OpenAI (optional)** — Toggle tool-calling in the sidebar; set `OPENAI_API_KEY` or paste a key in-session (never committed to the repo)
+
+Tabs: **Fundamentals | Valuation | Sensitivity | LBO Analysis | Compare**
 
 ### As an MCP server (Claude, ChatGPT, Cursor, Continue, anything that speaks MCP)
 
@@ -131,7 +143,10 @@ valuationengine/
 ├── adapters/
 │   ├── cli.py               Click CLI
 │   ├── mcp_server.py        FastMCP server for any LLM client
-│   └── dashboard.py         Streamlit dashboard
+│   ├── dashboard.py         Streamlit dashboard
+│   ├── dashboard_tables.py  HTML table renderers for the dashboard
+│   ├── dashboard_ux.py      Input validation, loading states, fetch errors
+│   └── openai_tools_client.py  Optional OpenAI tool-calling bridge
 ├── examples/                case study notebooks
 └── tests/                   pytest suite, no network calls
 ```
@@ -166,7 +181,7 @@ Real-world walkthroughs in `examples/`:
 pytest tests/
 ```
 
-Full pytest suite covering the core engine and the data fetcher. All yfinance calls are mocked, so the suite runs offline and finishes in seconds.
+Full pytest suite covering the core engine, dashboard helpers, and the data fetcher. All yfinance calls are mocked, so the suite runs offline and finishes in seconds.
 
 ---
 
@@ -176,6 +191,7 @@ Full pytest suite covering the core engine and the data fetcher. All yfinance ca
 - Trading-comps and transaction-comps modules
 - Multi-currency support for international tickers
 - Hosted Streamlit Cloud demo
+- Deeper OpenAI orchestration (populate dashboard directly from model JSON)
 
 ---
 
