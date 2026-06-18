@@ -24,7 +24,13 @@ from adapters import dashboard_ux as ux
 from adapters import openai_tools_client as oai
 
 st.set_page_config(page_title="Valuation Engine", layout="wide", page_icon="📊")
-tables.inject_layout_css()
+# If custom CSS ever breaks interactivity in a browser, you can force plain UI by
+# visiting `http://localhost:8501/?plain=1`.
+plain_ui = str(st.query_params.get("plain", "0")) == "1"
+if not plain_ui:
+    tables.inject_layout_css()
+else:
+    st.info("Plain UI mode enabled (`?plain=1`). Remove the query param to restore themed UI.")
 
 
 def _style_chart(fig, ax) -> None:
