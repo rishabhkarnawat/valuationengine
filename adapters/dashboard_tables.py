@@ -15,7 +15,7 @@ from core import reverse as reverse_module
 from core import sensitivity as sensitivity_module
 from core.models import Assumptions, Company, DCFResult, LBOResult
 
-from adapters.dashboard_ux import classify_fetch_error
+from adapters.dashboard_ux import classify_fetch_error, classify_valuation_error
 
 SENSITIVITY_GROWTH_VALUES = [i / 100 for i in range(-2, 9)]
 SENSITIVITY_MARGIN_VALUES = [i / 100 for i in range(15, 25)]
@@ -363,7 +363,7 @@ def render_skeleton(section: str = "full") -> str:
 
 
 def render_fetch_status(message: str) -> str:
-    return f'{_LAYOUT_CSS}<div class="ve-fetch-status">{message}</div>'
+    return f'<div class="ve-fetch-status">{html.escape(message)}</div>'
 
 
 def inject_layout_css() -> None:
@@ -411,8 +411,8 @@ def _kv_row(
     label_html = _tip_label(tooltip_label or label) if (tooltip_label or label) in TOOLTIPS else label
     return (
         f'<tr class="{alt_class}{extra}">'
-        f'<th scope="row" data-label="{label}">{label_html}</th>'
-        f'<td class="{vc}" data-label="{label}">{value}</td>'
+        f'<th scope="row" data-label="{html.escape(label)}">{label_html}</th>'
+        f'<td class="{vc}" data-label="{html.escape(label)}">{html.escape(value)}</td>'
         f"</tr>"
     )
 
@@ -786,10 +786,38 @@ def render_sensitivity_caption(
             f"**Market-implied growth** (orange border nearest cell): "
             f"{fmt_pct(market_growth)} growth required at current price."
         )
+
+    if market_growth is not None or market_margin is not None:
+        higher_growth = market_growth is not None and market_growth > base_growth
+        lower_growth = market_growth is not None and market_growth < base_growth
+        higher_margin = market_margin is not None and market_margin > base_margin
+        lower_margin = market_margin is not None and market_margin < base_margin
+        if higher_growth and higher_margin:
+            market_note = (
+                "The market is pricing in higher growth and margins than the historical base case."
+            )
+        elif lower_growth and lower_margin:
+            market_note = (
+                "The market is pricing in lower growth and margins than the historical base case."
+            )
+        elif higher_growth or higher_margin or lower_growth or lower_margin:
+            market_note = (
+                "Market-implied assumptions differ from the historical base case "
+                "(see Reverse DCF on the DCF tab)."
+            )
+        else:
+            market_note = (
+                "Market-implied assumptions match the historical base case on growth and margin."
+            )
+    else:
+        market_note = (
+            "Run Reverse DCF on the DCF & Scenarios tab to see market-implied assumptions."
+        )
+
     lines.append(
         "The base case (blue border) assumes historical growth and margins. "
-        "The market is pricing in higher growth and margins (see Reverse DCF above). "
-        "This table shows all paths to today's valuation."
+        f"{market_note} "
+        "This table shows fair value across assumption paths."
     )
     return "\n\n".join(lines)
 
@@ -981,7 +1009,7 @@ def build_peer_rows(
     total = len(tickers)
     for index, t in enumerate(tickers, start=1):
         if status_callback:
-            status_callback(f"Valuing **{index}** of **{total}**: **{t}**…")
+            status_callback(f"Valuing {index} of {total}: {t}…")
         try:
             c = fetch_fn(t)
             base = Assumptions.calibrated_for(
@@ -1003,7 +1031,7 @@ def build_peer_rows(
             l = lbo_module.run(c, base)
             peer_rows.append(compute_peer_metrics(c, base, d, l))
         except Exception as e:
-            errors.append(f"**{t}**: {classify_fetch_error(e, t)}")
+            errors.append(f"**{t}**: {classify_valuation_error(e, t)}")
     peer_rows.sort(key=lambda r: float(r["dcf_upside"]), reverse=True)
     return peer_rows, errors
 
@@ -1064,7 +1092,7 @@ def render_peer_comparison_table(peers: list[dict]) -> str:
     header = (
         "<thead><tr>"
         "<th>Metric</th>"
-        + "".join(f"<th>{p['ticker']}</th>" for p in peers)
+        + "".join(f"<th>{html.escape(p['ticker'])}</th>" for p in peers)
         + "</tr></thead>"
     )
 
@@ -1080,7 +1108,7 @@ def render_peer_comparison_table(peers: list[dict]) -> str:
     rows_html.append(
         "<tr>"
         '<th scope="row">Company Name</th>'
-        + "".join(f'<td data-label="Company Name">{p["name"]}</td>' for p in peers)
+        + "".join(f'<td data-label="Company Name">{html.escape(p["name"])}</td>' for p in peers)
         + "</tr>"
     )
 

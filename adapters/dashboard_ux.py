@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-import html
+import re
 from typing import Callable
 
 MAX_COMPARE_TICKERS = 5
+_TICKER_RE = re.compile(r"^[A-Z0-9.\-^]+$")
 
 MSG_TICKER_NOT_FOUND = "Ticker not found. Please check spelling and try again."
 MSG_API_FAILURE = "Unable to fetch data. Try again in a moment."
+MSG_VALUATION_FAILURE = "Valuation failed for this ticker."
 
 
 def parse_tickers(raw: str, max_tickers: int = MAX_COMPARE_TICKERS) -> tuple[list[str], list[str]]:
@@ -25,6 +27,9 @@ def parse_tickers(raw: str, max_tickers: int = MAX_COMPARE_TICKERS) -> tuple[lis
     for part in raw.split(","):
         ticker = part.strip().upper()
         if not ticker:
+            continue
+        if not _TICKER_RE.match(ticker):
+            warnings.append("Invalid ticker removed (use letters, numbers, and . - ^ only).")
             continue
         if ticker in seen:
             warnings.append(f"Duplicate ticker **{ticker}** removed.")
@@ -76,8 +81,30 @@ def classify_fetch_error(exc: Exception, ticker: str) -> str:
     ):
         return MSG_API_FAILURE
 
-    # Default: treat unknown errors as transient API issues
+    # Default for fetch-time errors: treat unknown errors as transient API issues
     return MSG_API_FAILURE
+
+
+def classify_valuation_error(exc: Exception, ticker: str) -> str:
+    """Map valuation-time exceptions after fundamentals were loaded."""
+    if isinstance(exc, ValueError):
+        return f"Invalid assumptions for {ticker}: {exc}"
+
+    fetch_msg = classify_fetch_error(exc, ticker)
+    if fetch_msg == MSG_TICKER_NOT_FOUND:
+        return fetch_msg
+
+    transient_types = (ConnectionError, TimeoutError, OSError)
+    try:
+        import requests
+
+        transient_types = transient_types + (requests.RequestException,)
+    except ImportError:
+        pass
+    if isinstance(exc, transient_types):
+        return MSG_API_FAILURE
+
+    return f"{MSG_VALUATION_FAILURE} ({type(exc).__name__})"
 
 
 def fetch_companies_batch(
@@ -97,7 +124,7 @@ def fetch_companies_batch(
 
     for index, ticker in enumerate(tickers, start=1):
         if status_update:
-            status_update(f"Fetching **{index}** of **{total}**: **{ticker}**…")
+            status_update(f"Fetching {index} of {total}: {ticker}…")
         try:
             companies[ticker] = fetch_fn(ticker)
         except Exception as exc:

@@ -201,11 +201,12 @@ if not tickers:
     st.stop()
 
 api_key = oai.get_api_key(openai_key_input if use_openai else None)
+openai_enabled = use_openai and bool(api_key)
 if use_openai and not api_key:
-    st.error("OpenAI API key missing. Add it in the sidebar or set OPENAI_API_KEY.")
-    tables.show_table(tables.render_empty_state("initial"))
-    st.markdown(tables.render_footer(), unsafe_allow_html=True)
-    st.stop()
+    st.warning(
+        "OpenAI tool-calling is enabled but no API key was found. "
+        "Add one in the sidebar or set OPENAI_API_KEY. Running local valuation only."
+    )
 
 # ── Fetch with loading UI ───────────────────────────────────────────────────
 
@@ -300,7 +301,7 @@ macro = dict(
 assumptions = _build_assumptions(company, revenue_growth, operating_margin, **macro)
 
 openai_result_json = None
-if use_openai:
+if openai_enabled:
     def _tool_exec(name: str, args: dict) -> dict:
         from adapters import mcp_server as mcp_tools
 

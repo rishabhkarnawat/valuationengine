@@ -84,3 +84,9 @@ def test_invalid_api_key_raises_clear_error():
   with patch("urllib.request.urlopen", side_effect=err):
     with pytest.raises(oai.OpenAIError, match="invalid or missing"):
       oai.run_tool_calling_session("bad", "hi", lambda n, a: {})
+
+
+def test_get_api_key_whitespace_falls_back_to_env(monkeypatch):
+  monkeypatch.setenv("OPENAI_API_KEY", "sk-env-key")
+  assert oai.get_api_key("   ") == "sk-env-key"
+  assert oai.get_api_key("sk-explicit") == "sk-explicit"

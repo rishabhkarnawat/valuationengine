@@ -97,8 +97,19 @@ def test_sensitivity_table_renders_highlights(sample_company, base_assumptions):
 def test_sensitivity_caption_includes_required_text():
     text = tables.render_sensitivity_caption(0.08, 0.20, 0.077, 0.232)
     assert "blue border" in text
-    assert "Reverse DCF" in text
+    assert "Reverse DCF" in text or "DCF & Scenarios" in text
     assert "7.7%" in text or "7.7" in text
+
+
+def test_sensitivity_caption_no_false_higher_pricing_claim():
+    text = tables.render_sensitivity_caption(0.08, 0.20, 0.05, 0.15)
+    assert "lower growth and margins" in text
+
+
+def test_fetch_status_escapes_html():
+    html_out = tables.render_fetch_status("<img src=x onerror=alert(1)>")
+    assert "<img" not in html_out
+    assert "&lt;img" in html_out
 
 
 def test_peer_comparison_table_sorts_and_highlights():

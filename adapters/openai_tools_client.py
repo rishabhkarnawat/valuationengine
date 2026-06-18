@@ -107,9 +107,8 @@ def _raise_openai_http_error(status: int, body: str) -> None:
 
 
 def get_api_key(explicit: str | None = None) -> str | None:
-    if explicit:
-        key = explicit.strip()
-        return key or None
+    if explicit is not None and explicit.strip():
+        return explicit.strip()
     env = os.getenv("OPENAI_API_KEY")
     return env.strip() if env else None
 

@@ -33,6 +33,18 @@ def test_classify_fetch_error_api_failure():
     assert ux.classify_fetch_error(RuntimeError("timeout waiting"), "X") == ux.MSG_API_FAILURE
 
 
+def test_classify_valuation_error_not_fetch_failure():
+    assert ux.classify_valuation_error(ZeroDivisionError("div"), "DPZ") == (
+        f"{ux.MSG_VALUATION_FAILURE} (ZeroDivisionError)"
+    )
+
+
+def test_parse_tickers_rejects_invalid_symbols():
+    tickers, warnings = ux.parse_tickers("DPZ, <script>, CMG")
+    assert tickers == ["DPZ", "CMG"]
+    assert any("Invalid ticker" in w for w in warnings)
+
+
 def test_fetch_companies_batch_partial_success():
     def fetch_fn(ticker: str):
         if ticker == "BAD":
