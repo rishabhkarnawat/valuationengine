@@ -362,14 +362,16 @@ with export_col:
 
 # ── Tabs ────────────────────────────────────────────────────────────────────
 
+st.markdown(tables.render_tab_nav_hint(), unsafe_allow_html=True)
+
 tab_labels = [
     "Fundamentals",
-    "Valuation",
-    "Sensitivity",
-    "LBO",
+    "DCF & Scenarios",
+    "Sensitivity Grid",
+    "LBO Analysis",
 ]
 if len(successful_tickers) > 1:
-    tab_labels.append("Compare")
+    tab_labels.append("Compare Peers")
 
 tabs = st.tabs(tab_labels)
 tab_fund, tab_val, tab_sens, tab_lbo = tabs[:4]

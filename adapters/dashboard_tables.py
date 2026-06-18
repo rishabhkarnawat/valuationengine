@@ -51,6 +51,41 @@ _GLOBAL_CSS = """
 .block-container { padding-top: 1.25rem; max-width: 1100px; }
 #MainMenu { visibility: hidden; }
 
+/* Streamlit tabs — high contrast so Valuation / Sensitivity / LBO are obvious */
+.stTabs [data-baseweb="tab-list"] {
+  gap: 6px;
+  border-bottom: 2px solid var(--ve-border);
+  padding-bottom: 0;
+}
+.stTabs [data-baseweb="tab"] {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+  font-size: 0.95rem !important;
+  padding: 0.7rem 1.1rem !important;
+  background: #e2e8f0 !important;
+  border-radius: 8px 8px 0 0 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-bottom: none !important;
+}
+.stTabs [data-baseweb="tab"]:hover {
+  color: var(--ve-accent) !important;
+  background: #eef2ff !important;
+}
+.stTabs [aria-selected="true"] {
+  color: var(--ve-accent) !important;
+  background: #ffffff !important;
+  border-color: var(--ve-accent) !important;
+  border-bottom: 2px solid #ffffff !important;
+  box-shadow: 0 -2px 0 var(--ve-accent) inset;
+}
+
+.ve-tab-nav {
+  background: #fff; border: 1px solid var(--ve-border); border-radius: var(--ve-radius-sm);
+  padding: 12px 16px; margin: 8px 0 12px; font-size: 0.9rem; color: var(--ve-text-muted);
+  line-height: 1.5;
+}
+.ve-tab-nav strong { color: var(--ve-text); }
+
 .ve-hero {
   background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #312e81 100%);
   border-radius: var(--ve-radius); padding: 24px 28px; margin-bottom: 16px;
@@ -260,12 +295,20 @@ def render_page_hero() -> str:
         '<h1 class="ve-hero-title">Valuation Engine</h1>'
         '<p class="ve-hero-sub">DCF, LBO, reverse DCF, and sensitivity analysis on any public company — '
         "calibrated to each ticker's five-year history.</p>"
-        '<div class="ve-hero-chips">'
-        '<span class="ve-chip">DCF fair value</span>'
-        '<span class="ve-chip">LBO returns</span>'
-        '<span class="ve-chip">Market-implied growth</span>'
-        '<span class="ve-chip">Peer compare</span>'
-        "</div></div></div>"
+        "</div></div>"
+    )
+
+
+def render_tab_nav_hint() -> str:
+    """Visible guide to the analysis tabs (hero chips are not navigation)."""
+    return (
+        '<div class="ve-tab-nav">'
+        "<strong>Explore the analysis</strong> — use the tabs directly below: "
+        "<strong>DCF &amp; Scenarios</strong> (fair value, bull/base/bear, reverse DCF), "
+        "<strong>Sensitivity</strong> (growth × margin grid), "
+        "<strong>LBO</strong> (returns, projection, debt schedule). "
+        "Adjust model inputs in the <strong>sidebar</strong> on the left."
+        "</div>"
     )
 
 
