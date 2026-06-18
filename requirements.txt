@@ -1,3 +1,4 @@
+certifi
 yfinance
 pandas
 numpy

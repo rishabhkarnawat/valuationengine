@@ -27,6 +27,20 @@ st.set_page_config(page_title="Valuation Engine", layout="wide", page_icon="📊
 tables.inject_layout_css()
 
 
+def _style_chart(fig, ax) -> None:
+    """Apply dashboard palette to matplotlib figures."""
+    fig.patch.set_facecolor("#ffffff")
+    ax.set_facecolor("#fafbfc")
+    for spine in ax.spines.values():
+        spine.set_color("#e2e8f0")
+    ax.tick_params(colors="#64748b", labelsize=9)
+    ax.xaxis.label.set_color("#334155")
+    ax.yaxis.label.set_color("#334155")
+    ax.title.set_color("#0f172a")
+    ax.grid(axis="y", color="#e2e8f0", linestyle="-", linewidth=0.8, alpha=0.9)
+    ax.set_axisbelow(True)
+
+
 @st.cache_data(show_spinner=False)
 def _fetch(ticker: str):
     return fetch_company(ticker)
@@ -141,33 +155,33 @@ def _clear_data_cache() -> None:
 
 # ── Header ──────────────────────────────────────────────────────────────────
 
-st.title("Valuation Engine")
-st.caption("DCF, LBO, sensitivity, scenarios, and reverse DCF on any public company.")
+st.markdown(tables.render_page_hero(), unsafe_allow_html=True)
 
 with st.sidebar:
-    st.header("Data")
-    if st.button("Refresh", help="Clear cached data and re-fetch from the API"):
+    st.header("Controls")
+    if st.button("Refresh data", help="Clear cached data and re-fetch from the API", use_container_width=True):
         _clear_data_cache()
         st.rerun()
 
-    st.subheader("OpenAI Settings")
-    st.caption("Your API key is stored locally in this session. Never share it.")
-    st.caption("Note: We never log or display your key.")
-    use_openai = st.toggle("Use OpenAI tool-calling", value=False)
+    st.divider()
+    st.subheader("OpenAI")
+    st.caption("Optional tool-calling layer. Key stays in this session only.")
+    use_openai = st.toggle("Enable tool-calling", value=False)
     openai_key_input = st.text_input(
-        "OpenAI API Key",
+        "API key",
         value="",
         type="password",
-        help="Alternatively set OPENAI_API_KEY in your environment.",
+        placeholder="sk-…",
+        help="Or set OPENAI_API_KEY in your environment.",
         disabled=not use_openai,
     )
 
-header_col, export_col = st.columns([4, 1])
-with header_col:
+search_col, export_col = st.columns([5, 1])
+with search_col:
     tickers_input = st.text_input(
-        "Ticker(s)",
+        "Analyze ticker(s)",
         value="",
-        placeholder="DPZ  or  DPZ, CMG, SBUX",
+        placeholder="DPZ  ·  DPZ, CMG, SBUX",
         help="One ticker for full analysis, or up to 5 comma-separated tickers to compare.",
     )
 
@@ -278,9 +292,10 @@ macro = dict(
 )
 
 assumptions = _build_assumptions(company, revenue_growth, operating_margin, **macro)
+
+openai_result_json = None
 if use_openai:
     def _tool_exec(name: str, args: dict) -> dict:
-        # Local execution of tool calls requested by the model.
         from adapters import mcp_server as mcp_tools
 
         if name == "valuationengine_fetch_fundamentals":
@@ -295,38 +310,30 @@ if use_openai:
             return mcp_tools.run_lbo(**args)
         return {"error": f"Unknown tool: {name}"}
 
-    # Ask OpenAI to orchestrate the tool calls and return structured JSON.
-    # We still compute local objects from the returned JSON to populate tables.
     prompt = (
         f"Analyze the valuation of {company.ticker}. "
-        "Use tools to fetch_fundamentals and run_dcf, run_lbo, and run_reverse_dcf. "
+        "Call valuationengine_fetch_fundamentals, valuationengine_run_dcf, "
+        "valuationengine_run_lbo, and valuationengine_run_reverse_dcf. "
         "Return JSON with keys: fundamentals, dcf, lbo, reverse."
     )
-    try:
-        result_json = oai.run_tool_calling_session(api_key, prompt, _tool_exec)
-    except oai.OpenAIRateLimit as e:
-        st.error(str(e))
-        st.stop()
-    except oai.OpenAITokenLimit as e:
-        st.error(str(e))
-        st.stop()
-    except oai.OpenAIToolsUnavailable as e:
-        st.error(str(e))
-        st.stop()
-    except Exception as e:
-        st.error(str(e))
-        st.stop()
+    with st.spinner("Running OpenAI tool-calling…"):
+        try:
+            openai_result_json = oai.run_tool_calling_session(api_key, prompt, _tool_exec)
+            st.success("OpenAI tool-calling completed.")
+        except oai.OpenAIRateLimit as e:
+            st.warning(str(e))
+        except oai.OpenAITokenLimit as e:
+            st.warning(str(e))
+        except oai.OpenAIToolsUnavailable as e:
+            st.warning(str(e))
+        except oai.OpenAIError as e:
+            st.warning(f"OpenAI tool-calling failed: {e}")
+        except Exception as e:
+            st.warning(f"OpenAI tool-calling failed: {e}")
 
-    # Today we keep the UI deterministic: we still render from local results,
-    # but we validate that OpenAI tool-calling is functioning without exposing keys.
-    dcf_result = dcf_module.run(company, assumptions)
-    lbo_base_result = lbo_module.run(company, assumptions)
-    reverse_implied = tables.solve_reverse_fields(company, assumptions)
-    st.caption("OpenAI tool-calling enabled (tools executed locally).")
-else:
-    dcf_result = dcf_module.run(company, assumptions)
-    lbo_base_result = lbo_module.run(company, assumptions)
-    reverse_implied = tables.solve_reverse_fields(company, assumptions)
+dcf_result = dcf_module.run(company, assumptions)
+lbo_base_result = lbo_module.run(company, assumptions)
+reverse_implied = tables.solve_reverse_fields(company, assumptions)
 
 # ── Summary card + export ───────────────────────────────────────────────────
 
@@ -350,26 +357,27 @@ with export_col:
 # ── Tabs ────────────────────────────────────────────────────────────────────
 
 tab_labels = [
-    "📊 Fundamentals",
-    "📈 Valuation",
-    "🎯 Sensitivity",
-    "💼 LBO Analysis",
+    "Fundamentals",
+    "Valuation",
+    "Sensitivity",
+    "LBO",
 ]
 if len(successful_tickers) > 1:
-    tab_labels.append("⚖️ Compare")
+    tab_labels.append("Compare")
 
 tabs = st.tabs(tab_labels)
 tab_fund, tab_val, tab_sens, tab_lbo = tabs[:4]
 tab_compare = tabs[4] if len(successful_tickers) > 1 else None
 
 with tab_fund:
+    st.markdown(tables.render_section_title("Company fundamentals", "Trailing history and market data"), unsafe_allow_html=True)
     tables.show_table(tables.render_fundamentals_table(company))
 
 with tab_val:
-    st.subheader("DCF Valuation")
+    st.markdown(tables.render_section_title("DCF valuation", "Intrinsic value from projected free cash flows"), unsafe_allow_html=True)
     tables.show_table(tables.render_dcf_valuation_table(dcf_result))
 
-    st.subheader("Scenarios")
+    st.markdown(tables.render_section_title("Scenario analysis", "Bull, base, and bear cases"), unsafe_allow_html=True)
     growth_delta = st.slider("Growth delta", 0.0, 0.10, 0.03, 0.01, key="scen_growth_delta")
     margin_delta = st.slider("Margin delta", 0.0, 0.10, 0.03, 0.01, key="scen_margin_delta")
     scenarios = scenario_module.build_bull_base_bear(
@@ -382,13 +390,18 @@ with tab_val:
     fig, ax = plt.subplots(figsize=(8, 4))
     labels = ["Bull", "Base", "Bear"]
     values = [scenario_results[k].value_per_share for k in ("bull", "base", "bear")]
-    ax.bar(labels, values, color=["#2ecc71", "#94a3b8", "#e74c3c"])
-    ax.axhline(company.current_price, color="black", linestyle="--", label="Current price")
+    colors = ["#059669", "#6366f1", "#dc2626"]
+    bars = ax.bar(labels, values, color=colors, width=0.55, edgecolor="white", linewidth=1.2)
+    ax.axhline(company.current_price, color="#0f172a", linestyle="--", linewidth=1.2, label="Current price")
     ax.set_ylabel("Intrinsic value per share ($)")
-    ax.legend()
+    _style_chart(fig, ax)
+    ax.legend(frameon=False, loc="upper right")
+    for bar, val in zip(bars, values):
+        ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height(), f"${val:,.0f}",
+                ha="center", va="bottom", fontsize=9, color="#334155")
     st.pyplot(fig)
 
-    st.subheader("Market Pricing (Reverse DCF)")
+    st.markdown(tables.render_section_title("Reverse DCF", "What the market is pricing in"), unsafe_allow_html=True)
     target = st.selectbox(
         "Match to",
         ["current_price", "market_cap"],
@@ -402,8 +415,12 @@ with tab_val:
     )
 
 with tab_sens:
-    st.caption(
-        "Fair value per share across revenue growth (rows) and operating margin (columns)."
+    st.markdown(
+        tables.render_section_title(
+            "Growth × margin sensitivity",
+            "Fair value per share across revenue growth (rows) and operating margin (columns)",
+        ),
+        unsafe_allow_html=True,
     )
     historical_base = _historical_base_assumptions(company, **{k: macro[k] for k in (
         "projection_years", "risk_free_rate", "equity_risk_premium", "target_debt_weight",
@@ -482,15 +499,16 @@ with tab_sens:
             ax.set_yticklabels([f"{v:.2f}" for v in y_values])
             ax.set_xlabel(x_field)
             ax.set_ylabel(y_field)
-            plt.colorbar(im)
+            _style_chart(fig, ax)
+            plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             st.pyplot(fig)
 
 with tab_lbo:
-    st.subheader("LBO Returns")
+    st.markdown(tables.render_section_title("LBO returns", "Sponsor IRR and MOIC at 60% and 75% leverage"), unsafe_allow_html=True)
     tables.show_table(tables.render_lbo_returns_table(company, assumptions))
-    st.subheader("5-Year Projection")
+    st.markdown(tables.render_section_title("5-year projection", "Operating and cash flow forecast"), unsafe_allow_html=True)
     tables.show_table(tables.render_projection_table(dcf_result, lbo_base_result))
-    st.subheader("Debt Schedule")
+    st.markdown(tables.render_section_title("Debt schedule", "Mandatory paydown and cash sweep"), unsafe_allow_html=True)
     tables.show_table(tables.render_debt_schedule_table(lbo_base_result))
 
 if tab_compare is not None:
@@ -498,7 +516,10 @@ if tab_compare is not None:
         if len(successful_tickers) < 2:
             tables.show_table(tables.render_empty_state("compare"))
         else:
-            st.caption("Historical base assumptions per company with shared macro inputs.")
+            st.markdown(
+                tables.render_section_title("Peer comparison", "Historical base per company, shared macro inputs"),
+                unsafe_allow_html=True,
+            )
             compare_skeleton = st.empty()
             compare_skeleton.markdown(tables.render_skeleton("table"), unsafe_allow_html=True)
             compare_status = st.empty()
@@ -521,20 +542,6 @@ if tab_compare is not None:
                 tables.show_table(tables.render_peer_comparison_table(peer_rows))
                 summary = tables.summarize_peers(peer_rows)
                 if summary:
-                    st.markdown(
-                        "\n".join(
-                            [
-                                "- **Most undervalued (highest DCF upside)**: "
-                                f"{summary['most_undervalued']['ticker']} "
-                                f"({tables.fmt_pct(summary['most_undervalued']['dcf_upside'], signed=True)})",
-                                "- **Best LBO returns (highest IRR)**: "
-                                f"{summary['best_lbo']['ticker']} "
-                                f"({tables.fmt_pct(summary['best_lbo']['lbo_irr'])})",
-                                "- **Most attractive growth profile (highest revenue CAGR)**: "
-                                f"{summary['best_growth']['ticker']} "
-                                f"({tables.fmt_pct(summary['best_growth']['revenue_cagr'])})",
-                            ]
-                        )
-                    )
+                    st.markdown(tables.render_peer_insights(summary), unsafe_allow_html=True)
 
 st.markdown(tables.render_footer(), unsafe_allow_html=True)

@@ -20,73 +20,257 @@ from adapters.dashboard_ux import classify_fetch_error
 SENSITIVITY_GROWTH_VALUES = [i / 100 for i in range(-2, 9)]
 SENSITIVITY_MARGIN_VALUES = [i / 100 for i in range(15, 25)]
 
-# Tailwind-inspired palette, layout chrome, and shared table styles
+# Design tokens + global layout (injected once via inject_layout_css)
 _LAYOUT_CSS = """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
 <style>
-.ve-layout { padding: 16px 0 24px; }
-.ve-header-block { margin-bottom: 24px; }
-.ve-header-ticker { font-size: 2.5rem; font-weight: 800; color: #0f172a; margin: 0; line-height: 1.1; }
-.ve-header-name { font-size: 1rem; color: #64748b; margin: 4px 0 0; }
-.ve-timestamp { font-size: 0.8rem; color: #94a3b8; margin-top: 8px; }
+:root {
+  --ve-bg: #f4f6fb;
+  --ve-surface: #ffffff;
+  --ve-surface-muted: #f8fafc;
+  --ve-border: #e2e8f0;
+  --ve-border-strong: #cbd5e1;
+  --ve-text: #0f172a;
+  --ve-text-muted: #64748b;
+  --ve-text-soft: #94a3b8;
+  --ve-accent: #4f46e5;
+  --ve-accent-soft: #eef2ff;
+  --ve-accent-2: #0ea5e9;
+  --ve-positive: #059669;
+  --ve-positive-bg: #ecfdf5;
+  --ve-negative: #dc2626;
+  --ve-negative-bg: #fef2f2;
+  --ve-warn: #d97706;
+  --ve-radius: 14px;
+  --ve-radius-sm: 10px;
+  --ve-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+  --ve-shadow-lg: 0 4px 6px rgba(15,23,42,.04), 0 20px 48px rgba(15,23,42,.08);
+  --ve-font: "DM Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --ve-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Streamlit shell */
+.stApp {
+  background: radial-gradient(1200px 600px at 10% -10%, #eef2ff 0%, transparent 55%),
+              radial-gradient(900px 500px at 90% 0%, #e0f2fe 0%, transparent 50%),
+              var(--ve-bg);
+  font-family: var(--ve-font);
+  color: var(--ve-text);
+}
+.block-container { padding-top: 1.5rem; max-width: 1180px; }
+#MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden; height: 0; }
+
+section[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  border-right: 1px solid rgba(255,255,255,.06);
+}
+section[data-testid="stSidebar"] * { color: #e2e8f0 !important; }
+section[data-testid="stSidebar"] .stSlider label,
+section[data-testid="stSidebar"] .stCheckbox label,
+section[data-testid="stSidebar"] p, section[data-testid="stSidebar"] span,
+section[data-testid="stSidebar"] h1, section[data-testid="stSidebar"] h2,
+section[data-testid="stSidebar"] h3 { color: #f1f5f9 !important; }
+section[data-testid="stSidebar"] .stCaption { color: #94a3b8 !important; }
+section[data-testid="stSidebar"] button {
+  background: rgba(255,255,255,.08) !important; border: 1px solid rgba(255,255,255,.12) !important;
+  color: #f8fafc !important; border-radius: 10px !important;
+}
+section[data-testid="stSidebar"] button:hover {
+  background: rgba(255,255,255,.14) !important; border-color: rgba(255,255,255,.2) !important;
+}
+section[data-testid="stSidebar"] input {
+  background: rgba(15,23,42,.5) !important; border: 1px solid rgba(255,255,255,.12) !important;
+  color: #f8fafc !important; border-radius: 10px !important;
+}
+
+.stTextInput input, .stTextInput input:focus {
+  border-radius: 12px !important; border: 1px solid var(--ve-border) !important;
+  background: var(--ve-surface) !important; padding: 0.65rem 1rem !important;
+  font-family: var(--ve-font) !important; font-size: 1rem !important;
+  box-shadow: var(--ve-shadow) !important;
+}
+.stTextInput input:focus { border-color: var(--ve-accent) !important; box-shadow: 0 0 0 3px rgba(79,70,229,.15) !important; }
+.stTextInput label { font-weight: 600 !important; color: var(--ve-text) !important; font-size: 0.9rem !important; }
+
+.stTabs [data-baseweb="tab-list"] {
+  gap: 6px; background: transparent; border-bottom: 1px solid var(--ve-border);
+  padding-bottom: 0;
+}
+.stTabs [data-baseweb="tab"] {
+  background: transparent !important; border-radius: 10px 10px 0 0 !important;
+  padding: 0.65rem 1.1rem !important; font-weight: 600 !important;
+  color: var(--ve-text-muted) !important; border: none !important;
+}
+.stTabs [aria-selected="true"] {
+  background: var(--ve-surface) !important; color: var(--ve-accent) !important;
+  box-shadow: var(--ve-shadow) !important; border: 1px solid var(--ve-border) !important;
+  border-bottom-color: var(--ve-surface) !important;
+}
+.stDownloadButton button {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%) !important;
+  color: white !important; border: none !important; border-radius: 12px !important;
+  font-weight: 600 !important; padding: 0.55rem 1.25rem !important;
+  box-shadow: 0 4px 14px rgba(79,70,229,.35) !important;
+}
+.stDownloadButton button:hover {
+  background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%) !important;
+}
+
+.ve-layout { padding: 8px 0 24px; font-family: var(--ve-font); }
+
+/* Hero / branding */
+.ve-hero {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #312e81 100%);
+  border-radius: var(--ve-radius); padding: 28px 32px; margin-bottom: 20px;
+  box-shadow: var(--ve-shadow-lg); position: relative; overflow: hidden;
+}
+.ve-hero::before {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(600px 300px at 100% 0%, rgba(99,102,241,.35), transparent 60%);
+  pointer-events: none;
+}
+.ve-hero-inner { position: relative; z-index: 1; }
+.ve-hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: #a5b4fc; margin-bottom: 10px;
+}
+.ve-hero-dot { width: 8px; height: 8px; border-radius: 50%; background: #34d399; box-shadow: 0 0 12px #34d399; }
+.ve-hero-title { font-size: 2rem; font-weight: 800; color: #f8fafc; margin: 0; line-height: 1.15; letter-spacing: -0.02em; }
+.ve-hero-sub { color: #cbd5e1; font-size: 1rem; margin: 8px 0 0; max-width: 52rem; line-height: 1.55; }
+.ve-hero-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.ve-chip {
+  font-size: 0.78rem; font-weight: 600; padding: 6px 12px; border-radius: 999px;
+  background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: #e2e8f0;
+}
+
+.ve-search-card {
+  background: var(--ve-surface); border: 1px solid var(--ve-border); border-radius: var(--ve-radius);
+  padding: 18px 20px; margin-bottom: 8px; box-shadow: var(--ve-shadow);
+}
+
+.ve-header-block { margin-bottom: 20px; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.ve-header-left { min-width: 0; }
+.ve-header-ticker {
+  font-size: 2.75rem; font-weight: 800; color: var(--ve-text); margin: 0; line-height: 1;
+  letter-spacing: -0.03em; font-family: var(--ve-mono);
+}
+.ve-header-name { font-size: 1.05rem; color: var(--ve-text-muted); margin: 6px 0 0; font-weight: 500; }
+.ve-timestamp {
+  font-size: 0.78rem; color: var(--ve-text-soft); margin-top: 8px;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.ve-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px;
+  border-radius: 999px; font-size: 0.82rem; font-weight: 700; letter-spacing: 0.02em;
+}
+.ve-badge-pos { background: var(--ve-positive-bg); color: var(--ve-positive); border: 1px solid #a7f3d0; }
+.ve-badge-neg { background: var(--ve-negative-bg); color: var(--ve-negative); border: 1px solid #fecaca; }
+
 .ve-summary-card {
-  background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,.08), 0 2px 4px -2px rgba(0,0,0,.06);
-  padding: 24px; margin: 16px 0 24px;
+  background: var(--ve-surface); border-radius: var(--ve-radius); border: 1px solid var(--ve-border);
+  box-shadow: var(--ve-shadow); padding: 22px 24px 24px; margin: 12px 0 24px;
 }
-.ve-summary-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
-}
+.ve-summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
 .ve-metric-box {
-  text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;
-  border: 1px solid #e2e8f0;
+  position: relative; text-align: left; padding: 18px 18px 16px;
+  background: var(--ve-surface-muted); border-radius: var(--ve-radius-sm);
+  border: 1px solid var(--ve-border); overflow: hidden;
 }
+.ve-metric-box::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, var(--ve-accent), var(--ve-accent-2));
+  opacity: .85;
+}
+.ve-metric-box:nth-child(2)::before { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+.ve-metric-box:nth-child(3)::before { background: linear-gradient(90deg, #059669, #34d399); }
+.ve-metric-box:nth-child(4)::before { background: linear-gradient(90deg, #ea580c, #fb923c); }
 .ve-metric-label {
-  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
-  color: #64748b; font-weight: 600;
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--ve-text-muted); font-weight: 700;
 }
-.ve-metric-value { font-size: 1.75rem; font-weight: 700; margin-top: 8px; color: #0f172a; }
-.ve-metric-upside-pos { color: #166534 !important; }
-.ve-metric-upside-neg { color: #b91c1c !important; }
+.ve-metric-value {
+  font-size: 1.85rem; font-weight: 700; margin-top: 10px; color: var(--ve-text);
+  font-family: var(--ve-mono); letter-spacing: -0.02em;
+}
+.ve-metric-upside-pos { color: var(--ve-positive) !important; }
+.ve-metric-upside-neg { color: var(--ve-negative) !important; }
 .ve-interpretation {
-  margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;
-  color: #475569; font-size: 0.95rem; line-height: 1.5;
+  margin-top: 18px; padding: 14px 16px; border-radius: var(--ve-radius-sm);
+  background: linear-gradient(90deg, var(--ve-accent-soft), #f0f9ff);
+  border: 1px solid #c7d2fe; color: #334155; font-size: 0.95rem; line-height: 1.55;
 }
+
+.ve-section-title { margin: 8px 0 4px; }
+.ve-section-title h3 {
+  margin: 0; font-size: 1.15rem; font-weight: 700; color: var(--ve-text); letter-spacing: -0.01em;
+}
+.ve-section-title p { margin: 4px 0 0; font-size: 0.88rem; color: var(--ve-text-muted); }
+
+.ve-insights {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 8px;
+}
+.ve-insight-card {
+  background: var(--ve-surface); border: 1px solid var(--ve-border); border-radius: var(--ve-radius-sm);
+  padding: 14px 16px; box-shadow: var(--ve-shadow);
+}
+.ve-insight-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ve-text-soft); font-weight: 700; }
+.ve-insight-value { margin-top: 6px; font-size: 1rem; font-weight: 700; color: var(--ve-text); }
+.ve-insight-meta { margin-top: 4px; font-size: 0.82rem; color: var(--ve-accent); font-weight: 600; }
+
 .ve-footer {
-  margin-top: 32px; padding: 16px 24px; text-align: center;
-  font-size: 0.8rem; color: #94a3b8; border-top: 1px solid #e2e8f0;
+  margin-top: 40px; padding: 18px 24px; text-align: center;
+  font-size: 0.78rem; color: var(--ve-text-soft); border-top: 1px solid var(--ve-border);
+  background: rgba(255,255,255,.6); border-radius: var(--ve-radius-sm);
 }
 .ve-empty-state {
-  text-align: center; padding: 48px 24px; margin: 24px 0;
-  background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 12px;
-  color: #64748b; font-size: 1rem; line-height: 1.6;
+  text-align: center; padding: 56px 28px; margin: 20px 0;
+  background: var(--ve-surface); border: 1px dashed var(--ve-border-strong);
+  border-radius: var(--ve-radius); box-shadow: var(--ve-shadow); color: var(--ve-text-muted);
+  font-size: 1rem; line-height: 1.65;
 }
-.ve-empty-state strong { color: #334155; }
+.ve-empty-state strong { color: var(--ve-text); }
+.ve-empty-features {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 22px;
+}
+.ve-empty-feature {
+  font-size: 0.82rem; font-weight: 600; padding: 8px 14px; border-radius: 999px;
+  background: var(--ve-accent-soft); color: #4338ca; border: 1px solid #c7d2fe;
+}
+
 .ve-skeleton-wrap { margin: 16px 0 24px; display: flex; flex-direction: column; gap: 12px; }
 .ve-skeleton {
   background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
   background-size: 200% 100%; animation: ve-shimmer 1.4s ease-in-out infinite;
-  border-radius: 8px; border: 1px solid #e2e8f0;
+  border-radius: var(--ve-radius-sm); border: 1px solid var(--ve-border);
 }
-.ve-skeleton-header { height: 72px; }
-.ve-skeleton-card { height: 140px; }
-.ve-skeleton-table { height: 200px; }
+.ve-skeleton-header { height: 88px; }
+.ve-skeleton-card { height: 160px; }
+.ve-skeleton-table { height: 220px; }
 @keyframes ve-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
-.ve-tip { cursor: help; border-bottom: 1px dotted #94a3b8; }
-.ve-tip-icon { font-size: 0.75rem; color: #94a3b8; margin-left: 2px; }
+.ve-tip { cursor: help; border-bottom: 1px dotted var(--ve-text-soft); }
+.ve-tip-icon { font-size: 0.75rem; color: var(--ve-text-soft); margin-left: 2px; }
 .ve-fetch-status {
-  font-size: 0.875rem; color: #64748b; margin: 8px 0 16px; padding: 8px 12px;
-  background: #f8fafc; border-radius: 6px; border-left: 3px solid #3b82f6;
+  font-size: 0.875rem; color: var(--ve-text-muted); margin: 8px 0 16px; padding: 10px 14px;
+  background: var(--ve-surface); border-radius: var(--ve-radius-sm);
+  border: 1px solid var(--ve-border); border-left: 4px solid var(--ve-accent);
+  box-shadow: var(--ve-shadow);
 }
+
 @media (max-width: 900px) {
-  .ve-summary-grid { grid-template-columns: repeat(2, 1fr); }
-  .ve-header-ticker { font-size: 2rem; }
+  .ve-summary-grid, .ve-insights { grid-template-columns: repeat(2, 1fr); }
+  .ve-header-ticker { font-size: 2.2rem; }
+  .ve-hero-title { font-size: 1.65rem; }
 }
 @media (max-width: 480px) {
-  .ve-summary-grid { grid-template-columns: 1fr; }
-  .ve-header-ticker { font-size: 1.75rem; }
+  .ve-summary-grid, .ve-insights { grid-template-columns: 1fr; }
+  .ve-header-ticker { font-size: 1.85rem; }
+  .ve-hero { padding: 22px 20px; }
 }
 </style>
 """
@@ -94,38 +278,43 @@ _LAYOUT_CSS = """
 _TABLE_CSS = """
 <style>
 .ve-table-wrap {
-  overflow-x: auto; margin: 16px 0 24px;
-  border-radius: 12px; border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 6px -1px rgba(0,0,0,.08), 0 2px 4px -2px rgba(0,0,0,.06);
+  overflow-x: auto; margin: 12px 0 20px;
+  border-radius: var(--ve-radius-sm, 12px); border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+  background: #ffffff;
 }
 .ve-table {
   width: 100%; border-collapse: collapse; font-size: 0.875rem; line-height: 1.5;
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .ve-table th {
-  background-color: #f1f5f9; color: #0f172a; font-weight: 700;
-  padding: 0.625rem 0.75rem; border: 1px solid #e2e8f0; text-align: left;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  color: #0f172a; font-weight: 700; font-size: 0.78rem; text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.7rem 0.85rem; border-bottom: 1px solid #e2e8f0; text-align: left;
 }
 .ve-table td {
-  padding: 0.625rem 0.75rem; border: 1px solid #e2e8f0; color: #1e293b;
+  padding: 0.7rem 0.85rem; border-bottom: 1px solid #f1f5f9; color: #1e293b;
 }
-.ve-table .ve-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ve-table .ve-row-alt { background-color: #f8fafc; }
-.ve-table .ve-highlight { background-color: #eff6ff; font-weight: 600; }
-.ve-table .ve-upside-pos { color: #166534; font-weight: 600; }
-.ve-table .ve-upside-neg { color: #b91c1c; font-weight: 600; }
-.ve-scenario-bull { background-color: #dcfce7; }
-.ve-scenario-base { background-color: #f1f5f9; }
-.ve-scenario-bear { background-color: #fee2e2; }
+.ve-table tbody tr:hover td { background: #fafbff; }
+.ve-table tbody tr:last-child td { border-bottom: none; }
+.ve-table .ve-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.84rem; }
+.ve-table .ve-row-alt { background-color: #fafbfc; }
+.ve-table .ve-highlight { background-color: #eef2ff; font-weight: 700; }
+.ve-table .ve-upside-pos { color: #059669; font-weight: 700; }
+.ve-table .ve-upside-neg { color: #dc2626; font-weight: 700; }
+.ve-scenario-bull { background-color: #ecfdf5; }
+.ve-scenario-base { background-color: #f8fafc; }
+.ve-scenario-bear { background-color: #fef2f2; }
 .ve-sens-legend { display: flex; flex-wrap: wrap; gap: 1rem; margin: 0.75rem 0 1rem; font-size: 0.875rem; }
 .ve-sens-legend span { display: inline-flex; align-items: center; gap: 0.375rem; }
-.ve-sens-swatch { width: 1rem; height: 1rem; border-radius: 0.125rem; border: 1px solid #cbd5e1; }
+.ve-sens-swatch { width: 1rem; height: 1rem; border-radius: 0.25rem; border: 1px solid #cbd5e1; }
 .ve-sens-ref { margin: 0.5rem 0 0.75rem; font-size: 0.95rem; }
 .ve-sens-ref strong { font-variant-numeric: tabular-nums; }
-.ve-sens-cell { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ve-sens-cell { text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.8rem; }
 @media (max-width: 640px) {
   .ve-table thead { display: none; }
-  .ve-table tr { display: block; margin-bottom: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.375rem; }
+  .ve-table tr { display: block; margin-bottom: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; }
   .ve-table td, .ve-table th[scope="row"] {
     display: flex; justify-content: space-between; align-items: center;
     border: none; border-bottom: 1px solid #f1f5f9;
@@ -179,6 +368,30 @@ def _tip_label(label: str) -> str:
     )
 
 
+def render_page_hero() -> str:
+    """Branded hero banner at the top of the dashboard."""
+    return (
+        f'{_LAYOUT_CSS}<div class="ve-hero"><div class="ve-hero-inner">'
+        '<div class="ve-hero-eyebrow"><span class="ve-hero-dot"></span> Live fundamentals</div>'
+        '<h1 class="ve-hero-title">Valuation Engine</h1>'
+        '<p class="ve-hero-sub">DCF, LBO, reverse DCF, and sensitivity analysis on any public company — '
+        "calibrated to each ticker's five-year history.</p>"
+        '<div class="ve-hero-chips">'
+        '<span class="ve-chip">DCF fair value</span>'
+        '<span class="ve-chip">LBO returns</span>'
+        '<span class="ve-chip">Market-implied growth</span>'
+        '<span class="ve-chip">Peer compare</span>'
+        "</div></div></div>"
+    )
+
+
+def render_section_title(title: str, subtitle: str = "") -> str:
+    sub = f'<p>{html.escape(subtitle)}</p>' if subtitle else ""
+    return (
+        f'<div class="ve-section-title"><h3>{html.escape(title)}</h3>{sub}</div>'
+    )
+
+
 def render_empty_state(mode: str = "initial") -> str:
     """Helpful prompts when no data is available."""
     if mode == "compare":
@@ -193,9 +406,18 @@ def render_empty_state(mode: str = "initial") -> str:
         )
     else:
         body = (
-            'Enter a stock ticker above (e.g., <strong>DPZ</strong>) to analyze valuation.'
+            'Enter a stock ticker above to run a full valuation — try <strong>DPZ</strong>, '
+            "<strong>AMZN</strong>, or <strong>NVDA</strong>."
         )
-    return f'{_LAYOUT_CSS}<div class="ve-empty-state">{body}</div>'
+    features = (
+        '<div class="ve-empty-features">'
+        '<span class="ve-empty-feature">5-year DCF</span>'
+        '<span class="ve-empty-feature">Bull / Base / Bear</span>'
+        '<span class="ve-empty-feature">Growth × margin grid</span>'
+        '<span class="ve-empty-feature">LBO IRR &amp; MOIC</span>'
+        "</div>"
+    )
+    return f'{_LAYOUT_CSS}<div class="ve-empty-state">{body}{features}</div>'
 
 
 def render_skeleton(section: str = "full") -> str:
@@ -674,6 +896,8 @@ def render_summary_card(
     """Top-of-page summary with four key metrics and interpretation."""
     upside = dcf_result.upside
     upside_class = "ve-metric-upside-pos" if upside >= 0 else "ve-metric-upside-neg"
+    badge_class = "ve-badge-pos" if upside >= 0 else "ve-badge-neg"
+    badge_label = "Undervalued" if upside >= 0 else "Premium to model"
     interpretation = build_summary_interpretation(company, dcf_result, reverse_implied)
     ts = fetched_at.strftime("%b %d, %Y %H:%M UTC")
 
@@ -693,13 +917,46 @@ def render_summary_card(
 
     return (
         f'{_LAYOUT_CSS}<div class="ve-header-block">'
-        f'<div class="ve-header-ticker">{company.ticker}</div>'
-        f'<div class="ve-header-name">{company.name}</div>'
-        f'<div class="ve-timestamp">Data fetched {ts}</div>'
+        f'<div class="ve-header-left">'
+        f'<div class="ve-header-ticker">{html.escape(company.ticker)}</div>'
+        f'<div class="ve-header-name">{html.escape(company.name)}</div>'
+        f'<div class="ve-timestamp">⟳ Data fetched {ts}</div>'
+        f"</div>"
+        f'<span class="ve-badge {badge_class}">{badge_label}</span>'
         f"</div>"
         f'<div class="ve-summary-card"><div class="ve-summary-grid">{grid}</div>'
-        f'<div class="ve-interpretation">{interpretation}</div></div>'
+        f'<div class="ve-interpretation">{html.escape(interpretation)}</div></div>'
     )
+
+
+def render_peer_insights(summary: dict) -> str:
+    """Styled insight cards for multi-ticker comparison."""
+    if not summary:
+        return ""
+    cards = [
+        (
+            "Most undervalued",
+            summary["most_undervalued"]["ticker"],
+            fmt_pct(summary["most_undervalued"]["dcf_upside"], signed=True) + " DCF upside",
+        ),
+        (
+            "Best LBO returns",
+            summary["best_lbo"]["ticker"],
+            fmt_pct(summary["best_lbo"]["lbo_irr"]) + " IRR",
+        ),
+        (
+            "Strongest growth",
+            summary["best_growth"]["ticker"],
+            fmt_pct(summary["best_growth"]["revenue_cagr"]) + " revenue CAGR",
+        ),
+    ]
+    body = "".join(
+        f'<div class="ve-insight-card"><div class="ve-insight-label">{html.escape(label)}</div>'
+        f'<div class="ve-insight-value">{html.escape(ticker)}</div>'
+        f'<div class="ve-insight-meta">{html.escape(meta)}</div></div>'
+        for label, ticker, meta in cards
+    )
+    return f'{_LAYOUT_CSS}<div class="ve-insights">{body}</div>'
 
 
 def build_valuation_summary_csv(

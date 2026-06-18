@@ -31,7 +31,7 @@ cd valuationengine
 pip install -r requirements.txt
 ```
 
-Requires Python 3.10 or higher.
+Requires Python 3.10 or higher. `certifi` is included for reliable HTTPS (OpenAI API calls on macOS).
 
 ---
 
@@ -75,15 +75,16 @@ Enter one ticker (e.g. `DPZ`) or up to five comma-separated tickers (e.g. `DPZ, 
 
 **Dashboard features:**
 
-- **Summary card** — Current price, fair value, upside/downside, and LBO IRR at a glance, plus a one-line interpretation
+- **Modern UI** — Dark sidebar, gradient hero, metric cards with mono numerals, styled tables and tabs
+- **Summary card** — Current price, fair value, upside/downside badge, LBO IRR, and a one-line interpretation
 - **HTML tables** — Fundamentals, DCF, scenarios, reverse DCF, LBO returns, projections, and debt schedule
 - **Sensitivity grid** — 2D heatmap of fair value across revenue growth and operating margin
-- **Peer comparison** — Side-by-side table sorted by DCF upside (multi-ticker mode)
+- **Peer comparison** — Side-by-side table sorted by DCF upside with insight cards (multi-ticker mode)
 - **Export CSV** — Download the main valuation summary
 - **UX** — Loading skeletons, fetch progress, clear error messages, tooltips, and a Refresh button to clear caches
-- **OpenAI (optional)** — Toggle tool-calling in the sidebar; set `OPENAI_API_KEY` or paste a key in-session (never committed to the repo)
+- **OpenAI (optional)** — Toggle tool-calling in the sidebar; set `OPENAI_API_KEY` or paste a key in-session. Requires OpenAI billing/credits for `gpt-4o` models. The local valuation engine runs without OpenAI.
 
-Tabs: **Fundamentals | Valuation | Sensitivity | LBO Analysis | Compare**
+Tabs: **Fundamentals | Valuation | Sensitivity | LBO | Compare**
 
 ### As an MCP server (Claude, ChatGPT, Cursor, Continue, anything that speaks MCP)
 
